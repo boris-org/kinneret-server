@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.Resources;
 import edu.kinneret.devops.server.core.KinneretServerApplication;
 import edu.kinneret.devops.server.core.KinneretServerConfiguration;
+import edu.kinneret.devops.server.dao.TaskDao;
 import edu.kinneret.devops.server.rest.Task;
 import io.dropwizard.testing.ResourceHelpers;
 import io.dropwizard.testing.junit.DropwizardAppRule;
@@ -35,13 +36,13 @@ public class TestTasksClient{
             new DropwizardAppRule<KinneretServerConfiguration>(KinneretServerApplication.class, ResourceHelpers.resourceFilePath("kinneret-server.yml"));
 
     @Test
-    public void createOneTaskAndGetIt() throws JsonProcessingException,IOException {
+    public void createOneTaskAndGetItAndDeleteIt() throws JsonProcessingException,IOException {
         Client client = new JerseyClientBuilder().build();
         String tasksResourceTarget = String.format("http://localhost:%d/tasks", RULE.getLocalPort());
         ObjectMapper om = new ObjectMapper();
 
         //POSTing a new Task
-        Task taskToCreate = new Task(456,"bliblu");
+        Task taskToCreate = new Task(123,"blablabla");
         String taskAsString = om.writeValueAsString(taskToCreate);
         Response postResponse = client.target(tasksResourceTarget)
                 .request(MediaType.APPLICATION_JSON_TYPE)
@@ -58,10 +59,23 @@ public class TestTasksClient{
                 .request().accept(MediaType.APPLICATION_JSON_TYPE).get();
         assertThat(getResponse.getStatus()).isEqualTo(200);
 
-        Object o = getResponse.readEntity(String.class);
-        Task taskAfterGet = om.readValue(out, Task.class);
+        String o = getResponse.readEntity(String.class).toString();
+        Task taskAfterGet = om.readValue(o, Task.class);
         assertThat(taskAfterPost.getDescription()).isEqualTo(taskAfterGet.getDescription());
         assertThat(taskAfterPost.getId()).isEqualTo(taskAfterGet.getId());
 
+        //Delete the task we just created
+        Response deletedResponse = client.target(tasksResourceTarget + "/" + createdTaskId)
+                .request().accept(MediaType.APPLICATION_JSON_TYPE).delete();
+        assertThat(deletedResponse.getStatus()).isEqualTo(200);
+
+        String deletedStr = deletedResponse.readEntity(String.class).toString();
+        Task deletedTask = om.readValue(deletedStr, Task.class);
+        assertThat(deletedTask.getDescription()).isEqualTo(taskAfterGet.getDescription());
+        assertThat(deletedTask.getId()).isEqualTo(taskAfterGet.getId());
+
+        Response deletedResponse2 = client.target(tasksResourceTarget + "/" + createdTaskId)
+                .request().accept(MediaType.APPLICATION_JSON_TYPE).delete();
+        assertThat(deletedResponse2.getStatus()).isEqualTo(500);
     }
 }
